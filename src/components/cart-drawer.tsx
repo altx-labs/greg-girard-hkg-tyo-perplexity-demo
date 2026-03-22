@@ -1,27 +1,34 @@
 "use client";
 
-import { X, Minus, Plus, Trash2, ArrowRight } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { useCartStore } from "@/lib/cart-store";
 import { formatPrice, deliveryOptions } from "@/lib/products";
-import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
 
-interface CartDrawerProps {
-  open: boolean;
-  onClose: () => void;
-}
-
-export function CartDrawer({ open, onClose }: CartDrawerProps) {
+export function CartDrawer() {
   const items = useCartStore((s) => s.items);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
   const removeItem = useCartStore((s) => s.removeItem);
   const getTotal = useCartStore((s) => s.getTotal);
+  const getItemCount = useCartStore((s) => s.getItemCount);
   const customerInfo = useCartStore((s) => s.customerInfo);
   const setCustomerInfo = useCartStore((s) => s.setCustomerInfo);
+
+  const [open, setOpen] = useState(false);
   const [step, setStep] = useState<"cart" | "info" | "confirm">("cart");
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const drawerRef = useRef<HTMLDivElement>(null);
+
+  const itemCount = getItemCount();
+  const subtotal = getTotal();
+
+  const deliveryOption = deliveryOptions.find(
+    (d) => d.id === customerInfo.deliveryMethod
+  );
+  const deliveryPrice = deliveryOption?.price ?? 0;
+  const total = subtotal + deliveryPrice;
+
+  const hasBooks = items.some((i) => i.product.category === "book");
 
   useEffect(() => {
     if (open) {
@@ -35,23 +42,12 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
     };
   }, [open]);
 
-  const deliveryOption = deliveryOptions.find(
-    (d) => d.id === customerInfo.deliveryMethod
-  );
-  const deliveryPrice = deliveryOption?.price ?? 0;
-  const subtotal = getTotal();
-  const total = subtotal + deliveryPrice;
-
-  const hasBooks = items.some((i) => i.product.category === "book");
-
   const validateInfo = () => {
     const newErrors: Record<string, string> = {};
     if (!customerInfo.email.trim() || !/\S+@\S+\.\S+/.test(customerInfo.email))
       newErrors.email = "Valid email required";
-    if (!customerInfo.fullName.trim())
-      newErrors.fullName = "Name required";
-    if (!customerInfo.phone.trim())
-      newErrors.phone = "Phone required";
+    if (!customerInfo.fullName.trim()) newErrors.fullName = "Name required";
+    if (!customerInfo.phone.trim()) newErrors.phone = "Phone required";
     if (
       customerInfo.deliveryMethod !== "pickup" &&
       !customerInfo.shippingAddress.trim()
@@ -93,110 +89,172 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
     }
   };
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-[100]">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
-        onClick={onClose}
-      />
+    <>
+      {/* Cart toggle button — fixed top-right */}
+      <button
+        onClick={() => setOpen(true)}
+        className="fixed top-4 right-4 z-40 flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors"
+        style={{
+          background: "var(--accent)",
+          color: "var(--accent-text)",
+        }}
+        aria-label="Open cart"
+        data-testid="button-open-cart"
+      >
+        <span>Cart</span>
+        {itemCount > 0 && (
+          <span
+            className="text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full"
+            style={{
+              background: "var(--accent-text)",
+              color: "var(--accent)",
+            }}
+          >
+            {itemCount}
+          </span>
+        )}
+      </button>
+
+      {/* Overlay */}
+      {open && (
+        <div
+          className="fixed inset-0 z-40 backdrop-blur-sm"
+          style={{ background: "var(--overlay)" }}
+          onClick={() => setOpen(false)}
+        />
+      )}
 
       {/* Drawer */}
       <div
         ref={drawerRef}
-        className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-[var(--color-bg)] border-l border-[var(--color-border)] flex flex-col animate-slide-in"
+        className={`fixed top-0 right-0 h-full w-full max-w-md z-50 shadow-2xl flex flex-col transition-transform duration-300 ${
+          open ? "translate-x-0" : "translate-x-full"
+        }`}
+        style={{
+          background: "var(--bg)",
+          borderLeft: "1px solid var(--border)",
+        }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
-          <h2 className="text-sm font-medium tracking-wider uppercase">
-            {step === "cart" && "Cart"}
-            {step === "info" && "Your Details"}
-            {step === "confirm" && "Confirm Order"}
+        <div
+          className="flex items-center justify-between px-6 py-4"
+          style={{ borderBottom: "1px solid var(--border)" }}
+        >
+          <h2 className="text-base font-semibold">
+            Your Order{itemCount > 0 && ` (${itemCount})`}
           </h2>
           <button
-            onClick={onClose}
-            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+            onClick={() => setOpen(false)}
+            className="text-xl leading-none transition-colors"
+            style={{ color: "var(--text-tertiary)" }}
+            aria-label="Close cart"
             data-testid="button-close-cart"
           >
-            <X size={18} />
+            ×
           </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Items */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
           {items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center px-6">
-              <p className="text-sm text-[var(--color-text-muted)] mb-1">
-                Your cart is empty
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>
+                Your cart is empty.
               </p>
-              <p className="text-xs text-[var(--color-text-faint)]">
-                Browse the collection to add items
-              </p>
+              <button
+                onClick={() => setOpen(false)}
+                className="mt-4 text-xs underline underline-offset-2"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Continue browsing
+              </button>
             </div>
           ) : step === "cart" ? (
-            <div className="divide-y divide-[var(--color-border)]">
+            <ul className="space-y-4">
               {items.map((item) => (
-                <div
+                <li
                   key={item.product.id}
-                  className="flex gap-4 p-5"
+                  className="flex gap-3 pb-4"
+                  style={{ borderBottom: "1px solid var(--border-light)" }}
                   data-testid={`cart-item-${item.product.id}`}
                 >
-                  <div className="relative w-16 h-20 rounded-sm overflow-hidden shrink-0 bg-[var(--color-surface)]">
-                    <Image
-                      src={item.product.image}
-                      alt={item.product.name}
-                      fill
-                      className="object-cover"
-                      sizes="64px"
-                    />
-                  </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-medium leading-snug truncate">
-                      {item.product.name}
-                    </h3>
-                    <p className="text-xs text-[var(--color-accent)] mt-0.5">
-                      {formatPrice(item.product.price)}
+                    <p
+                      className="text-xs font-mono"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      {item.product.sku}
                     </p>
-
-                    <div className="flex items-center gap-2 mt-2">
-                      <button
-                        onClick={() =>
-                          updateQuantity(item.product.id, item.quantity - 1)
-                        }
-                        className="w-6 h-6 flex items-center justify-center rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-faint)] transition-colors"
-                        data-testid={`button-decrease-${item.product.id}`}
+                    <p className="text-sm font-medium leading-snug truncate">
+                      {item.product.name}
+                    </p>
+                    {item.product.preorder && (
+                      <p
+                        className="text-xs mt-0.5"
+                        style={{ color: "var(--text-tertiary)" }}
                       >
-                        <Minus size={12} />
-                      </button>
-                      <span className="text-sm w-5 text-center font-mono">
-                        {item.quantity}
-                      </span>
-                      <button
-                        onClick={() =>
-                          updateQuantity(item.product.id, item.quantity + 1)
-                        }
-                        disabled={item.quantity >= item.product.maxQty}
-                        className="w-6 h-6 flex items-center justify-center rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-faint)] transition-colors disabled:opacity-30"
-                        data-testid={`button-increase-${item.product.id}`}
+                        Pre-order · {item.product.availableDate}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-3 mt-2">
+                      <div
+                        className="flex items-center"
+                        style={{ border: "1px solid var(--border)" }}
                       >
-                        <Plus size={12} />
-                      </button>
+                        <button
+                          onClick={() =>
+                            updateQuantity(item.product.id, item.quantity - 1)
+                          }
+                          className="w-7 h-7 flex items-center justify-center text-sm"
+                          style={{ color: "var(--text-secondary)" }}
+                          data-testid={`button-cart-decrease-${item.product.id}`}
+                        >
+                          −
+                        </button>
+                        <span className="w-7 text-center text-xs font-medium">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() =>
+                            updateQuantity(item.product.id, item.quantity + 1)
+                          }
+                          className="w-7 h-7 flex items-center justify-center text-sm"
+                          style={{ color: "var(--text-secondary)" }}
+                          disabled={item.quantity >= item.product.maxQty}
+                          data-testid={`button-cart-increase-${item.product.id}`}
+                        >
+                          +
+                        </button>
+                      </div>
                       <button
                         onClick={() => removeItem(item.product.id)}
-                        className="ml-auto p-1 text-[var(--color-text-faint)] hover:text-[var(--color-error)] transition-colors"
+                        className="text-xs transition-colors hover:opacity-70"
+                        style={{ color: "var(--text-tertiary)" }}
                         data-testid={`button-remove-${item.product.id}`}
                       >
-                        <Trash2 size={14} />
+                        Remove
                       </button>
                     </div>
                   </div>
-                </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-semibold">
+                      {formatPrice(item.product.price * item.quantity)}
+                    </p>
+                    {item.quantity > 1 && (
+                      <p
+                        className="text-xs"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        {formatPrice(item.product.price)} each
+                      </p>
+                    )}
+                  </div>
+                </li>
               ))}
-            </div>
+            </ul>
           ) : step === "info" ? (
-            <div className="p-5 space-y-4">
+            <div className="space-y-4">
               <InputField
                 label="Email"
                 type="email"
@@ -221,50 +279,6 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
                 testId="input-phone"
               />
 
-              <div>
-                <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-2 uppercase tracking-wider">
-                  Delivery 送貨方式
-                </label>
-                <div className="space-y-2">
-                  {deliveryOptions
-                    .filter((d) => !d.bookOnly || hasBooks)
-                    .map((option) => (
-                      <label
-                        key={option.id}
-                        className={`flex items-center gap-3 p-3 rounded border cursor-pointer transition-colors ${
-                          customerInfo.deliveryMethod === option.id
-                            ? "border-[var(--color-accent)] bg-[var(--color-accent-muted)]"
-                            : "border-[var(--color-border)] hover:border-[var(--color-text-faint)]"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="delivery"
-                          value={option.id}
-                          checked={customerInfo.deliveryMethod === option.id}
-                          onChange={(e) =>
-                            setCustomerInfo({
-                              deliveryMethod: e.target.value,
-                            })
-                          }
-                          className="accent-[var(--color-accent)]"
-                        />
-                        <div className="flex-1 flex items-center justify-between">
-                          <span className="text-sm">
-                            {option.label}{" "}
-                            <span className="text-[var(--color-text-muted)]">
-                              {option.labelCn}
-                            </span>
-                          </span>
-                          <span className="text-xs font-medium text-[var(--color-accent)]">
-                            {option.description}
-                          </span>
-                        </div>
-                      </label>
-                    ))}
-                </div>
-              </div>
-
               {customerInfo.deliveryMethod !== "pickup" && (
                 <InputField
                   label="Shipping Address 送貨地址"
@@ -276,7 +290,10 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
               )}
 
               <div>
-                <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wider">
+                <label
+                  className="block text-xs font-medium uppercase tracking-wider mb-1.5"
+                  style={{ color: "var(--text-secondary)" }}
+                >
                   Remarks 備註
                 </label>
                 <textarea
@@ -285,17 +302,22 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
                     setCustomerInfo({ remarks: e.target.value })
                   }
                   rows={3}
-                  className="w-full px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded focus:border-[var(--color-accent)] focus:outline-none transition-colors resize-none"
+                  className="w-full px-3 py-2 text-sm focus:outline-none transition-colors resize-none"
+                  style={{
+                    background: "var(--bg-surface)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-primary)",
+                  }}
                   data-testid="input-remarks"
                 />
               </div>
             </div>
           ) : (
             /* Confirm step */
-            <div className="p-5 space-y-4">
-              <div className="text-xs text-[var(--color-text-muted)] space-y-2">
+            <div className="space-y-4">
+              <div className="text-xs space-y-2" style={{ color: "var(--text-secondary)" }}>
                 <p>
-                  <span className="font-medium text-[var(--color-text)]">
+                  <span className="font-medium" style={{ color: "var(--text-primary)" }}>
                     {customerInfo.fullName}
                   </span>
                 </p>
@@ -304,11 +326,11 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
                 {customerInfo.deliveryMethod !== "pickup" && (
                   <p>{customerInfo.shippingAddress}</p>
                 )}
-                <p className="text-[var(--color-accent)]">
+                <p style={{ color: "var(--text-primary)" }}>
                   {deliveryOption?.label} — {deliveryOption?.description}
                 </p>
               </div>
-              <div className="border-t border-[var(--color-border)] pt-4 space-y-2">
+              <div className="pt-4 space-y-2" style={{ borderTop: "1px solid var(--border)" }}>
                 {items.map((item) => (
                   <div
                     key={item.product.id}
@@ -317,9 +339,7 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
                     <span>
                       {item.product.name} × {item.quantity}
                     </span>
-                    <span className="text-[var(--color-accent)]">
-                      {formatPrice(item.product.price * item.quantity)}
-                    </span>
+                    <span>{formatPrice(item.product.price * item.quantity)}</span>
                   </div>
                 ))}
               </div>
@@ -329,29 +349,103 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
 
         {/* Footer */}
         {items.length > 0 && (
-          <div className="border-t border-[var(--color-border)] p-5 space-y-3">
-            {step !== "cart" && deliveryPrice > 0 && (
-              <div className="flex justify-between text-xs text-[var(--color-text-muted)]">
-                <span>Delivery</span>
-                <span>{formatPrice(deliveryPrice)}</span>
+          <div
+            className="px-6 py-4 space-y-4"
+            style={{ borderTop: "1px solid var(--border)" }}
+          >
+            {/* Delivery method selector — show on cart step */}
+            {step === "cart" && (
+              <div>
+                <label
+                  className="text-xs font-medium uppercase tracking-wider block mb-2"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  Delivery Method
+                </label>
+                <div className="space-y-1.5">
+                  {deliveryOptions
+                    .filter((d) => !d.bookOnly || hasBooks)
+                    .map((opt) => (
+                      <label
+                        key={opt.id}
+                        className="flex items-center justify-between px-3 py-2 cursor-pointer transition-colors"
+                        style={{
+                          border:
+                            customerInfo.deliveryMethod === opt.id
+                              ? "1px solid var(--accent)"
+                              : "1px solid var(--border)",
+                          background:
+                            customerInfo.deliveryMethod === opt.id
+                              ? "var(--bg-surface)"
+                              : "transparent",
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="shipping"
+                            value={opt.id}
+                            checked={customerInfo.deliveryMethod === opt.id}
+                            onChange={() =>
+                              setCustomerInfo({ deliveryMethod: opt.id })
+                            }
+                            className="sr-only"
+                          />
+                          <span className="text-xs" style={{ color: "var(--text-primary)" }}>
+                            {opt.label}
+                          </span>
+                        </div>
+                        <span className="text-xs font-medium">
+                          {opt.price === 0 ? "Free" : formatPrice(opt.price)}
+                        </span>
+                      </label>
+                    ))}
+                </div>
               </div>
             )}
-            <div className="flex justify-between items-center">
-              <span className="text-xs uppercase tracking-wider text-[var(--color-text-muted)]">
-                {step === "cart" ? "Subtotal" : "Total"}
-              </span>
-              <span className="text-base font-medium text-[var(--color-accent)]">
-                {formatPrice(step === "cart" ? subtotal : total)}
-              </span>
+
+            {/* Totals */}
+            <div
+              className="space-y-1.5 pt-2"
+              style={{ borderTop: "1px solid var(--border)" }}
+            >
+              <div
+                className="flex justify-between text-sm"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                <span>Subtotal</span>
+                <span>{formatPrice(subtotal)}</span>
+              </div>
+              <div
+                className="flex justify-between text-sm"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                <span>Shipping</span>
+                <span>
+                  {deliveryPrice === 0 ? "Free" : formatPrice(deliveryPrice)}
+                </span>
+              </div>
+              <div
+                className="flex justify-between text-base font-semibold pt-1.5"
+                style={{ borderTop: "1px solid var(--border)" }}
+              >
+                <span>Total</span>
+                <span>{formatPrice(total)}</span>
+              </div>
             </div>
 
+            {/* Action buttons */}
             <div className="flex gap-2">
               {step !== "cart" && (
                 <button
                   onClick={() =>
                     setStep(step === "confirm" ? "info" : "cart")
                   }
-                  className="flex-1 py-2.5 text-sm font-medium border border-[var(--color-border)] rounded hover:border-[var(--color-text-faint)] transition-colors"
+                  className="flex-1 py-2.5 text-sm font-medium transition-colors"
+                  style={{
+                    border: "1px solid var(--border)",
+                    color: "var(--text-primary)",
+                  }}
                   data-testid="button-back"
                 >
                   Back
@@ -365,44 +459,23 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
                   } else handleCheckout();
                 }}
                 disabled={isCheckingOut}
-                className="flex-1 py-2.5 text-sm font-medium bg-[var(--color-accent)] text-[var(--color-bg)] rounded hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 py-2.5 text-sm font-medium tracking-wide uppercase transition-all duration-200 disabled:opacity-50"
+                style={{
+                  background: "var(--accent)",
+                  color: "var(--accent-text)",
+                }}
                 data-testid="button-checkout"
               >
-                {step === "cart" && (
-                  <>
-                    Checkout <ArrowRight size={14} />
-                  </>
-                )}
+                {step === "cart" && "Checkout"}
                 {step === "info" && "Review Order"}
                 {step === "confirm" &&
                   (isCheckingOut ? "Processing..." : "Pay with Stripe")}
               </button>
             </div>
-
-            <div className="flex items-start gap-2 pt-1">
-              <p className="text-[10px] text-[var(--color-text-faint)] leading-relaxed">
-                By proceeding, you confirm your order for exhibition merchandise
-                and agree to the privacy policy for processing this order.
-              </p>
-            </div>
           </div>
         )}
       </div>
-
-      <style jsx>{`
-        @keyframes slide-in {
-          from {
-            transform: translateX(100%);
-          }
-          to {
-            transform: translateX(0);
-          }
-        }
-        .animate-slide-in {
-          animation: slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-      `}</style>
-    </div>
+    </>
   );
 }
 
@@ -423,22 +496,30 @@ function InputField({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wider">
+      <label
+        className="block text-xs font-medium uppercase tracking-wider mb-1.5"
+        style={{ color: "var(--text-secondary)" }}
+      >
         {label}
       </label>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={`w-full px-3 py-2 text-sm bg-[var(--color-surface)] border rounded focus:outline-none transition-colors ${
-          error
-            ? "border-[var(--color-error)]"
-            : "border-[var(--color-border)] focus:border-[var(--color-accent)]"
-        }`}
+        className="w-full px-3 py-2 text-sm focus:outline-none transition-colors"
+        style={{
+          background: "var(--bg-surface)",
+          border: error
+            ? "1px solid #ef4444"
+            : "1px solid var(--border)",
+          color: "var(--text-primary)",
+        }}
         data-testid={testId}
       />
       {error && (
-        <p className="text-[10px] text-[var(--color-error)] mt-1">{error}</p>
+        <p className="text-[10px] mt-1" style={{ color: "#ef4444" }}>
+          {error}
+        </p>
       )}
     </div>
   );

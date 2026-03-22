@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { Plus, Check } from "lucide-react";
 import { type Product, formatPrice } from "@/lib/products";
 import { useCartStore } from "@/lib/cart-store";
 import { useState } from "react";
@@ -12,74 +11,139 @@ interface ProductCardProps {
 
 export function ProductCard({ product }: ProductCardProps) {
   const addItem = useCartStore((s) => s.addItem);
-  const items = useCartStore((s) => s.items);
-  const inCart = items.find((i) => i.product.id === product.id);
-  const [justAdded, setJustAdded] = useState(false);
+  const [qty, setQty] = useState(1);
+  const [added, setAdded] = useState(false);
 
   const handleAdd = () => {
-    if (inCart && inCart.quantity >= product.maxQty) return;
-    addItem(product);
-    setJustAdded(true);
-    setTimeout(() => setJustAdded(false), 1200);
+    addItem(product, qty);
+    setAdded(true);
+    setTimeout(() => setAdded(false), 1500);
   };
 
   return (
     <div
-      className="group flex flex-col"
+      className="group flex flex-col transition-all duration-200"
+      style={{
+        background: "var(--bg)",
+        border: "1px solid var(--border)",
+      }}
+      onMouseEnter={(e) =>
+        (e.currentTarget.style.borderColor = "var(--text-tertiary)")
+      }
+      onMouseLeave={(e) =>
+        (e.currentTarget.style.borderColor = "var(--border)")
+      }
       data-testid={`card-product-${product.id}`}
     >
       {/* Image */}
-      <div className="relative aspect-[3/4] overflow-hidden rounded-sm bg-[var(--color-surface)]">
+      <div
+        className="relative aspect-[3/4] overflow-hidden"
+        style={{ background: "var(--image-placeholder)" }}
+      >
         <Image
           src={product.image}
           alt={product.name}
           fill
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+          className="object-cover group-hover:scale-[1.02] transition-transform duration-300"
         />
-
-        {/* Pre-order badge */}
-        {product.status === "preorder" && (
-          <div className="absolute top-3 left-3 px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase bg-[var(--color-bg)]/80 backdrop-blur-sm rounded-sm text-[var(--color-accent)]">
-            Pre-order · {product.availableDate}
+        {product.preorder && (
+          <div className="absolute top-2 left-2">
+            <span
+              className="text-[10px] font-medium tracking-widest uppercase px-2 py-1"
+              style={{
+                background: "var(--badge-bg)",
+                color: "var(--badge-text)",
+              }}
+            >
+              Pre-order
+            </span>
           </div>
         )}
-
-        {/* Add to cart overlay */}
-        <button
-          onClick={handleAdd}
-          disabled={inCart !== undefined && inCart.quantity >= product.maxQty}
-          className="absolute bottom-3 right-3 w-9 h-9 flex items-center justify-center rounded-full
-            bg-[var(--color-accent)] text-[var(--color-bg)] 
-            opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0
-            transition-all duration-300
-            hover:bg-[var(--color-accent-hover)]
-            disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label={`Add ${product.name} to cart`}
-          data-testid={`button-add-${product.id}`}
-        >
-          {justAdded ? <Check size={16} strokeWidth={2} /> : <Plus size={16} strokeWidth={2} />}
-        </button>
       </div>
 
       {/* Info */}
-      <div className="mt-3 flex flex-col gap-1">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="text-sm font-medium leading-snug text-[var(--color-text)]">
+      <div className="flex flex-col flex-1 p-3 sm:p-4 gap-3">
+        <div>
+          <p
+            className="text-[10px] font-mono tracking-wider mb-1"
+            style={{ color: "var(--text-tertiary)" }}
+          >
+            {product.sku}
+          </p>
+          <h3 className="text-sm font-medium leading-snug">
             {product.name}
           </h3>
+          {product.nameCn && product.nameCn !== product.name && (
+            <p
+              className="text-xs mt-0.5"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              {product.nameCn}
+            </p>
+          )}
+          {product.preorder && product.availableDate && (
+            <p
+              className="text-xs mt-1"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              Available {product.availableDate}
+            </p>
+          )}
         </div>
-        {product.nameCn !== product.name && (
-          <p className="text-xs text-[var(--color-text-muted)]">
-            {product.nameCn}
+
+        <div className="mt-auto">
+          <p className="text-sm font-semibold mb-3">
+            {formatPrice(product.price)}
           </p>
-        )}
-        <p className="text-sm font-medium text-[var(--color-accent)] mt-0.5">
-          {formatPrice(product.price)}
-        </p>
-        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-faint)]">
-          {product.sku}
-        </p>
+
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Qty selector */}
+            <div
+              className="flex items-center"
+              style={{ border: "1px solid var(--border)" }}
+            >
+              <button
+                onClick={() => setQty((q) => Math.max(1, q - 1))}
+                className="w-7 h-8 sm:w-8 flex items-center justify-center text-sm transition-colors"
+                style={{ color: "var(--text-secondary)" }}
+                aria-label="Decrease quantity"
+                data-testid={`button-decrease-${product.id}`}
+              >
+                −
+              </button>
+              <span
+                className="w-6 sm:w-8 text-center text-sm font-medium"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {qty}
+              </span>
+              <button
+                onClick={() => setQty((q) => Math.min(product.maxQty, q + 1))}
+                className="w-7 h-8 sm:w-8 flex items-center justify-center text-sm transition-colors"
+                style={{ color: "var(--text-secondary)" }}
+                aria-label="Increase quantity"
+                data-testid={`button-increase-${product.id}`}
+              >
+                +
+              </button>
+            </div>
+
+            {/* Add to cart */}
+            <button
+              onClick={handleAdd}
+              className="flex-1 h-8 text-[10px] sm:text-xs font-medium tracking-wide uppercase transition-all duration-200 whitespace-nowrap px-2"
+              style={{
+                background: added ? "var(--success)" : "var(--accent)",
+                color: "var(--accent-text)",
+              }}
+              data-testid={`button-add-${product.id}`}
+            >
+              {added ? "✓" : "Add"}
+              <span className="hidden sm:inline">{added ? "" : " to Cart"}</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

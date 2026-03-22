@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { CartProvider } from "@/components/cart-provider";
-import { Header } from "@/components/header";
-import { Footer } from "@/components/footer";
+import { ThemeProvider } from "@/components/theme-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,13 +14,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Greg Girard: HKG-TYO 1974–2023 — Exhibition Store",
+  title: "Greg Girard: HKG-TYO 1974–2023 | WKM Gallery Store",
   description:
-    "Exhibition merchandise for 'Greg Girard: HKG-TYO 1974–2023'. Photography books, limited edition prints, and collectibles.",
+    "Exhibition merchandise for 'Greg Girard: HKG-TYO 1974–2023' at WKM Gallery. Limited edition poster and photography books.",
   openGraph: {
-    title: "Greg Girard: HKG-TYO 1974–2023 — Exhibition Store",
+    title: "Greg Girard: HKG-TYO 1974–2023 | WKM Gallery Store",
     description:
-      "Exhibition merchandise for 'Greg Girard: HKG-TYO 1974–2023'.",
+      "Exhibition merchandise — limited edition poster and photography books.",
     type: "website",
   },
 };
@@ -35,14 +33,11 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable}`}
+      suppressHydrationWarning
     >
-      <body className="min-h-dvh flex flex-col bg-[var(--color-bg)] text-[var(--color-text)]">
-        <CartProvider>
-          <Header />
-          <main className="flex-1">{children}</main>
-          <Footer />
-        </CartProvider>
+      <body>
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

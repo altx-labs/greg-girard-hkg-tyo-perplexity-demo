@@ -20,7 +20,10 @@ export async function POST(request: NextRequest) {
 
     if (!process.env.STRIPE_SECRET_KEY) {
       return NextResponse.json(
-        { error: "Stripe is not configured yet. Please add your Stripe secret key." },
+        {
+          error:
+            "Stripe is not configured yet. Please add your Stripe secret key.",
+        },
         { status: 500 }
       );
     }
@@ -36,12 +39,13 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Prices are stored in whole HKD; Stripe expects cents
       lineItems.push({
         price_data: {
           currency: "hkd",
           product_data: {
             name: product.name,
-            description: product.status === "preorder"
+            description: product.preorder
               ? `Pre-order — ${product.availableDate}`
               : product.sku,
             images: product.image.startsWith("http")
@@ -52,7 +56,7 @@ export async function POST(request: NextRequest) {
               productId: product.id,
             },
           },
-          unit_amount: product.price,
+          unit_amount: product.price * 100,
         },
         quantity: item.quantity,
       });
@@ -68,7 +72,7 @@ export async function POST(request: NextRequest) {
             name: `Delivery — ${delivery.label}`,
             description: delivery.labelCn,
           },
-          unit_amount: delivery.price,
+          unit_amount: delivery.price * 100,
         },
         quantity: 1,
       });
